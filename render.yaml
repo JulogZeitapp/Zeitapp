@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: zeitapp
+    env: node
+    buildCommand: npm run render-build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        value: mongodb+srv://zeitapp:Teddye123.@zeitapp.ptlihjl.mongodb.net/zeitapp?retryWrites=true&w=majority&appName=ZeitApp
+      - key: JWT_SECRET
+        value: dein-super-geheimer-schluessel-hier
+    healthCheckPath: /health
+    autoDeploy: true 

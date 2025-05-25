@@ -13,10 +13,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// CORS-Konfiguration für Railway
+// CORS-Konfiguration für Produktion
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.RAILWAY_PUBLIC_DOMAIN, 'https://zeitapp.up.railway.app']
+    ? [
+        'https://zeitapp.onrender.com',
+        'https://www.zeitapp.onrender.com',
+        process.env.RENDER_EXTERNAL_URL,
+        process.env.RAILWAY_PUBLIC_DOMAIN
+      ].filter(Boolean)
     : 'http://localhost:5173',
   credentials: true
 };

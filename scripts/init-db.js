@@ -5,29 +5,35 @@ async function initializeDatabase() {
   try {
     const db = await connectToDatabase();
     
-    // Testbenutzer erstellen
+    // Lösche bestehende Benutzer
+    await db.collection('users').deleteMany({});
+    
+    // Erstelle Test-Benutzer
     const users = [
+      {
+        email: 'chef@zeitapp.de',
+        password: await bcrypt.hash('test123', 10),
+        role: 'chef',
+        name: 'Chef User'
+      },
       {
         email: 'fahrer@zeitapp.de',
         password: await bcrypt.hash('test123', 10),
         role: 'driver',
         name: 'Max Mustermann'
-      },
-      {
-        email: 'chef@zeitapp.de',
-        password: await bcrypt.hash('test123', 10),
-        role: 'chef',
-        name: 'Anna Schmidt'
       }
     ];
-
-    // Benutzer in die Datenbank einfügen
+    
     await db.collection('users').insertMany(users);
-    console.log('Testbenutzer wurden erfolgreich erstellt!');
+    
+    console.log('Testdaten erfolgreich initialisiert!');
+    console.log('Testbenutzer:');
+    console.log('- Chef: chef@zeitapp.de / test123');
+    console.log('- Fahrer: fahrer@zeitapp.de / test123');
     
     process.exit(0);
   } catch (error) {
-    console.error('Fehler beim Initialisieren der Datenbank:', error);
+    console.error('Fehler bei der Initialisierung:', error);
     process.exit(1);
   }
 }

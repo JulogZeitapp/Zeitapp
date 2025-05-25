@@ -1,6 +1,6 @@
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
-import { createLogger, defineConfig } from 'vite';
+import { createLogger, defineConfig, loadEnv } from 'vite';
 
 const configHorizonsViteErrorHandler = `
 const observer = new MutationObserver((mutations) => {
@@ -181,41 +181,51 @@ logger.error = (msg, options) => {
 	loggerError(msg, options);
 }
 
-export default defineConfig({
-	customLogger: logger,
-	plugins: [react(), addTransformIndexHtml],
-	server: {
-		cors: true,
-		headers: {
-			'Cross-Origin-Embedder-Policy': 'credentialless',
-		},
-		allowedHosts: true,
-		port: 5173,
-		proxy: {
-			'/api': {
-				target: 'http://localhost:3001',
-				changeOrigin: true,
-				secure: false,
+export default defineConfig(({ mode }) => {
+	const env = loadEnv(mode, process.cwd(), '');
+	const apiUrl = mode === 'production' 
+		? 'https://zeitapp.onrender.com' 
+		: 'http://localhost:3000';
+
+	return {
+		customLogger: logger,
+		plugins: [react(), addTransformIndexHtml],
+		server: {
+			cors: true,
+			headers: {
+				'Cross-Origin-Embedder-Policy': 'credentialless',
 			},
-		},
-	},
-	resolve: {
-		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],
-		alias: {
-			'@': path.resolve(__dirname, './src'),
-		},
-	},
-	build: {
-		outDir: 'dist',
-		sourcemap: process.env.NODE_ENV !== 'production',
-		minify: process.env.NODE_ENV === 'production',
-		rollupOptions: {
-			output: {
-				manualChunks: {
-					vendor: ['react', 'react-dom', 'react-router-dom'],
-					ui: ['@radix-ui/react-alert-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-toast'],
+			allowedHosts: true,
+			port: 5173,
+			proxy: {
+				'/api': {
+					target: 'http://localhost:3001',
+					changeOrigin: true,
+					secure: false,
 				},
 			},
 		},
-	},
+		resolve: {
+			extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],
+			alias: {
+				'@': path.resolve(__dirname, './src'),
+			},
+		},
+		build: {
+			outDir: 'dist',
+			sourcemap: process.env.NODE_ENV !== 'production',
+			minify: process.env.NODE_ENV === 'production',
+			rollupOptions: {
+				output: {
+					manualChunks: {
+						vendor: ['react', 'react-dom', 'react-router-dom'],
+						ui: ['@radix-ui/react-alert-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-toast'],
+					},
+				},
+			},
+		},
+		define: {
+			'process.env.VITE_API_URL': JSON.stringify(apiUrl)
+		},
+	};
 });
