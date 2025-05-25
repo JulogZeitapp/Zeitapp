@@ -73,16 +73,26 @@ const authenticateToken = (req, res, next) => {
 // Login Route
 app.post('/api/login', async (req, res) => {
   try {
+    console.log('Login-Versuch:', { email: req.body.email });
+    
     const db = await connectToDatabase();
     const { email, password } = req.body;
 
+    // Prüfe ob Benutzer existiert
     const user = await db.collection('users').findOne({ email });
+    console.log('Benutzer gefunden:', user ? { email: user.email, role: user.role } : 'Nein');
+
     if (!user) {
+      console.log('Login fehlgeschlagen: Benutzer nicht gefunden');
       return res.status(401).json({ message: 'Ungültige Anmeldedaten' });
     }
 
+    // Prüfe Passwort
     const validPassword = await bcrypt.compare(password, user.password);
+    console.log('Passwort validiert:', validPassword ? 'Ja' : 'Nein');
+
     if (!validPassword) {
+      console.log('Login fehlgeschlagen: Falsches Passwort');
       return res.status(401).json({ message: 'Ungültige Anmeldedaten' });
     }
 
@@ -91,6 +101,8 @@ app.post('/api/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    console.log('Login erfolgreich:', { email: user.email, role: user.role });
 
     res.json({ 
       token, 
@@ -102,8 +114,11 @@ app.post('/api/login', async (req, res) => {
       } 
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Serverfehler' });
+    console.error('Login-Fehler:', error);
+    res.status(500).json({ 
+      message: 'Serverfehler',
+      error: process.env.NODE_ENV === 'production' ? undefined : error.message 
+    });
   }
 });
 
@@ -127,23 +142,39 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   }
 });
 
-// Datenbank-Status Route
+// Verbesserte Datenbank-Status Route
 app.get('/api/db-status', async (req, res) => {
   try {
+    console.log('Datenbank-Status wird geprüft...');
     const db = await connectToDatabase();
+    
+    // Prüfe Verbindung
+    const collections = await db.listCollections().toArray();
+    console.log('Verfügbare Collections:', collections.map(c => c.name));
+    
+    // Zähle Benutzer
     const userCount = await db.collection('users').countDocuments();
+    console.log('Anzahl Benutzer:', userCount);
+    
+    // Hole Benutzer-Details (ohne Passwörter)
+    const users = await db.collection('users')
+      .find({})
+      .project({ password: 0 })
+      .toArray();
     
     res.json({ 
       status: 'ok',
       userCount,
+      collections: collections.map(c => c.name),
+      users: users,
       message: userCount === 0 ? 'Keine Benutzer gefunden. Bitte initialisieren.' : `${userCount} Benutzer gefunden.`
     });
   } catch (error) {
-    console.error('Fehler beim Prüfen des Datenbankstatus:', error);
+    console.error('Datenbank-Status-Fehler:', error);
     res.status(500).json({ 
       status: 'error',
       message: 'Datenbankfehler',
-      error: error.message 
+      error: process.env.NODE_ENV === 'production' ? undefined : error.message 
     });
   }
 });
