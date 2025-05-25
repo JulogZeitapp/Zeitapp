@@ -9,6 +9,8 @@ const API_URL = import.meta.env.VITE_API_URL ||
     ? 'http://localhost:3000' 
     : window.location.origin);
 
+console.log('API URL:', API_URL); // Debug-Log
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -24,14 +26,16 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUsers = async () => {
     try {
+      console.log('Fetching users from:', `${API_URL}/api/users`); // Debug-Log
       const response = await axios.get(`${API_URL}/api/users`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
+      console.log('Users fetched:', response.data); // Debug-Log
       setUsers(response.data);
     } catch (error) {
-      console.error('Fehler beim Laden der Benutzer:', error);
+      console.error('Fehler beim Laden der Benutzer:', error.response?.data || error.message);
     }
   };
 
@@ -59,14 +63,24 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      console.log('Login-Versuch an:', `${API_URL}/api/login`); // Debug-Log
+      console.log('Login-Daten:', { email }); // Debug-Log (ohne Passwort)
+
       const response = await axios.post(`${API_URL}/api/login`, {
         email,
         password
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
+
+      console.log('Login-Antwort:', response.data); // Debug-Log
 
       const { token, user } = response.data;
       
       if (!token || !user || !user.email || !user.role) {
+        console.error('Ungültige Serverantwort:', response.data); // Debug-Log
         throw new Error('Ungültige Serverantwort');
       }
 
@@ -80,7 +94,11 @@ export const AuthProvider = ({ children }) => {
       
       return true;
     } catch (error) {
-      console.error('Login fehlgeschlagen:', error);
+      console.error('Login fehlgeschlagen:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       return false;
     }
   };
