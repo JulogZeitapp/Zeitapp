@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ObjectId } from 'mongodb';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -184,8 +185,9 @@ app.post('/api/init-db', async (req, res) => {
   try {
     const db = await connectToDatabase();
     
-    // Lösche bestehende Benutzer
+    // Lösche bestehende Daten
     await db.collection('users').deleteMany({});
+    await db.collection('arbeitszeiten').deleteMany({});
     
     // Erstelle Test-Benutzer
     const users = [
@@ -203,11 +205,16 @@ app.post('/api/init-db', async (req, res) => {
       }
     ];
     
+    // Erstelle Collections mit Indizes
+    await db.collection('users').createIndex({ email: 1 }, { unique: true });
+    await db.collection('arbeitszeiten').createIndex({ fahrerId: 1, startZeit: -1 });
+    await db.collection('arbeitszeiten').createIndex({ status: 1 });
+    
     await db.collection('users').insertMany(users);
     
     res.json({ 
       status: 'success',
-      message: 'Testdaten erfolgreich initialisiert',
+      message: 'Datenbank erfolgreich initialisiert',
       users: users.map(u => ({ email: u.email, role: u.role, name: u.name }))
     });
   } catch (error) {
@@ -251,6 +258,166 @@ app.get('/api/db-inspect', async (req, res) => {
   } catch (error) {
     console.error('Fehler beim Abrufen der Datenbankdaten:', error);
     res.status(500).json({ message: 'Serverfehler' });
+  }
+});
+
+// Arbeitszeit-Routen
+app.post('/api/arbeitszeiten', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'driver') {
+      return res.status(403).json({ message: 'Nur Fahrer können Arbeitszeiten erfassen' });
+    }
+
+    const db = await connectToDatabase();
+    const { datum, startZeit, endZeit, pause, beschreibung, arbeitszeitMinuten } = req.body;
+
+    // Validiere die Daten
+    if (!datum || !startZeit || !endZeit) {
+      return res.status(400).json({ message: 'Datum, Start- und Endzeit sind erforderlich' });
+    }
+
+    const arbeitszeit = {
+      fahrerId: req.user.id,
+      fahrerEmail: req.user.email,
+      fahrerName: req.user.name,
+      datum: new Date(datum),
+      startZeit,
+      endZeit,
+      pause: Number(pause) || 0,
+      arbeitszeitMinuten: Number(arbeitszeitMinuten) || 0,
+      beschreibung: beschreibung || '',
+      status: 'pending',
+      erstelltAm: new Date(),
+      aktualisiertAm: new Date()
+    };
+
+    console.log('Speichere Arbeitszeit:', {
+      fahrerId: arbeitszeit.fahrerId,
+      datum: arbeitszeit.datum,
+      startZeit: arbeitszeit.startZeit,
+      endZeit: arbeitszeit.endZeit,
+      arbeitszeitMinuten: arbeitszeit.arbeitszeitMinuten
+    });
+
+    const result = await db.collection('arbeitszeiten').insertOne(arbeitszeit);
+    
+    if (!result.acknowledged) {
+      throw new Error('Fehler beim Speichern der Arbeitszeit');
+    }
+
+    res.status(201).json({
+      message: 'Arbeitszeit erfolgreich gespeichert',
+      arbeitszeit: { ...arbeitszeit, _id: result.insertedId }
+    });
+  } catch (error) {
+    console.error('Fehler beim Speichern der Arbeitszeit:', error);
+    res.status(500).json({ 
+      message: 'Serverfehler beim Speichern der Arbeitszeit',
+      error: process.env.NODE_ENV === 'production' ? undefined : error.message
+    });
+  }
+});
+
+// Arbeitszeiten eines Fahrers abrufen
+app.get('/api/arbeitszeiten/fahrer/:fahrerId', authenticateToken, async (req, res) => {
+  try {
+    const db = await connectToDatabase();
+    const { fahrerId } = req.params;
+
+    // Nur der eigene Fahrer oder der Chef darf die Daten sehen
+    if (req.user.role !== 'chef' && req.user.id !== fahrerId) {
+      return res.status(403).json({ message: 'Nicht autorisiert' });
+    }
+
+    const arbeitszeiten = await db.collection('arbeitszeiten')
+      .find({ fahrerId })
+      .sort({ startZeit: -1 })
+      .toArray();
+
+    res.json(arbeitszeiten);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Arbeitszeiten:', error);
+    res.status(500).json({ message: 'Serverfehler beim Abrufen der Arbeitszeiten' });
+  }
+});
+
+// Alle Arbeitszeiten für Chef abrufen
+app.get('/api/arbeitszeiten', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'chef') {
+      return res.status(403).json({ message: 'Nur der Chef kann alle Arbeitszeiten sehen' });
+    }
+
+    const db = await connectToDatabase();
+    const arbeitszeiten = await db.collection('arbeitszeiten')
+      .find({})
+      .sort({ startZeit: -1 })
+      .toArray();
+
+    // Gruppiere nach Fahrern
+    const gruppierteArbeitszeiten = arbeitszeiten.reduce((acc, zeit) => {
+      const fahrerId = zeit.fahrerId;
+      if (!acc[fahrerId]) {
+        acc[fahrerId] = {
+          fahrer: {
+            id: zeit.fahrerId,
+            email: zeit.fahrerEmail,
+            name: zeit.fahrerName
+          },
+          zeiten: []
+        };
+      }
+      acc[fahrerId].zeiten.push(zeit);
+      return acc;
+    }, {});
+
+    res.json(Object.values(gruppierteArbeitszeiten));
+  } catch (error) {
+    console.error('Fehler beim Abrufen aller Arbeitszeiten:', error);
+    res.status(500).json({ message: 'Serverfehler beim Abrufen der Arbeitszeiten' });
+  }
+});
+
+// Arbeitszeit aktualisieren
+app.put('/api/arbeitszeiten/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = await connectToDatabase();
+    const { id } = req.params;
+    const { startZeit, endZeit, pause, beschreibung, status } = req.body;
+
+    // Prüfe Berechtigung
+    const arbeitszeit = await db.collection('arbeitszeiten').findOne({ _id: new ObjectId(id) });
+    if (!arbeitszeit) {
+      return res.status(404).json({ message: 'Arbeitszeit nicht gefunden' });
+    }
+
+    if (req.user.role !== 'chef' && req.user.id !== arbeitszeit.fahrerId) {
+      return res.status(403).json({ message: 'Nicht autorisiert' });
+    }
+
+    const update = {
+      ...(startZeit && { startZeit: new Date(startZeit) }),
+      ...(endZeit && { endZeit: new Date(endZeit) }),
+      ...(pause !== undefined && { pause: Number(pause) }),
+      ...(beschreibung !== undefined && { beschreibung }),
+      ...(status && { status }),
+      aktualisiertAm: new Date()
+    };
+
+    const result = await db.collection('arbeitszeiten')
+      .updateOne(
+        { _id: new ObjectId(id) },
+        { $set: update }
+      );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Arbeitszeit nicht gefunden' });
+    }
+
+    res.json({ message: 'Arbeitszeit erfolgreich aktualisiert' });
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren der Arbeitszeit:', error);
+    res.status(500).json({ message: 'Serverfehler beim Aktualisieren der Arbeitszeit' });
   }
 });
 

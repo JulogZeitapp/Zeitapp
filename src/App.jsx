@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ArbeitszeitProvider } from '@/contexts/ArbeitszeitContext';
 import { ToastProvider } from '@/components/ui/toast';
 import MainLayout from '@/layouts/MainLayout';
 import LoginPage from '@/pages/LoginPage';
@@ -8,6 +9,7 @@ import DriverDashboardPage from '@/pages/DriverDashboardPage';
 import ChefDashboardPage from '@/pages/ChefDashboardPage';
 import HomePage from '@/pages/HomePage'; 
 import ProtectedRoute from '@/components/shared/ProtectedRoute';
+import Arbeitszeiten from '@/pages/Arbeitszeiten';
 
 const AppRoutes = () => {
   return (
@@ -31,6 +33,13 @@ const AppRoutes = () => {
             </ProtectedRoute>
           } 
         />
+        <Route path="/arbeitszeiten" element={
+          <ProtectedRoute>
+            <MainLayout>
+              <Arbeitszeiten />
+            </MainLayout>
+          </ProtectedRoute>
+        } />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -40,11 +49,13 @@ const AppRoutes = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <ToastProvider>
-        <AppRoutes />
-        </ToastProvider>
-      </Router>
+      <ArbeitszeitProvider>
+        <Router>
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
+        </Router>
+      </ArbeitszeitProvider>
     </AuthProvider>
   );
 }
