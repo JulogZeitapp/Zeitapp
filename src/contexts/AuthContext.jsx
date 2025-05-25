@@ -3,6 +3,12 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 
+// API-URL basierend auf der Umgebung
+const API_URL = import.meta.env.VITE_API_URL || 
+  (window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000' 
+    : window.location.origin);
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -18,7 +24,7 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/users', {
+      const response = await axios.get(`${API_URL}/api/users`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
@@ -53,7 +59,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('http://localhost:3001/api/login', {
+      const response = await axios.post(`${API_URL}/api/login`, {
         email,
         password
       });

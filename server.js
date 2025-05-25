@@ -120,8 +120,29 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   }
 });
 
-// Initialisierungs-Route für Testdaten
-app.post('/api/init', async (req, res) => {
+// Datenbank-Status Route
+app.get('/api/db-status', async (req, res) => {
+  try {
+    const db = await connectToDatabase();
+    const userCount = await db.collection('users').countDocuments();
+    
+    res.json({ 
+      status: 'ok',
+      userCount,
+      message: userCount === 0 ? 'Keine Benutzer gefunden. Bitte initialisieren.' : `${userCount} Benutzer gefunden.`
+    });
+  } catch (error) {
+    console.error('Fehler beim Prüfen des Datenbankstatus:', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'Datenbankfehler',
+      error: error.message 
+    });
+  }
+});
+
+// Initialisierungs-Route für Testdaten (ohne Authentifizierung)
+app.post('/api/init-db', async (req, res) => {
   try {
     const db = await connectToDatabase();
     
@@ -131,31 +152,33 @@ app.post('/api/init', async (req, res) => {
     // Erstelle Test-Benutzer
     const users = [
       {
-        email: 'chef@example.com',
-        password: await bcrypt.hash('password123', 10),
+        email: 'chef@zeitapp.de',
+        password: await bcrypt.hash('test123', 10),
         role: 'chef',
         name: 'Chef User'
       },
       {
-        email: 'driver1@example.com',
-        password: await bcrypt.hash('password123', 10),
+        email: 'fahrer@zeitapp.de',
+        password: await bcrypt.hash('test123', 10),
         role: 'driver',
         name: 'Max Mustermann'
-      },
-      {
-        email: 'driver2@example.com',
-        password: await bcrypt.hash('password123', 10),
-        role: 'driver',
-        name: 'Anna Schmidt'
       }
     ];
     
     await db.collection('users').insertMany(users);
     
-    res.json({ message: 'Testdaten erfolgreich initialisiert' });
+    res.json({ 
+      status: 'success',
+      message: 'Testdaten erfolgreich initialisiert',
+      users: users.map(u => ({ email: u.email, role: u.role, name: u.name }))
+    });
   } catch (error) {
     console.error('Initialisierungsfehler:', error);
-    res.status(500).json({ message: 'Serverfehler bei der Initialisierung' });
+    res.status(500).json({ 
+      status: 'error',
+      message: 'Fehler bei der Initialisierung',
+      error: error.message 
+    });
   }
 });
 
