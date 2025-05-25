@@ -2,19 +2,18 @@ services:
   - type: web
     name: zeitapp
     env: node
-    plan: free
-    buildCommand: |
-      npm install
-      npm run build
+    buildCommand: npm install -g vite && npm run build
     startCommand: npm run start
     envVars:
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
-        value: mongodb+srv://zeitapp:Teddye123.@zeitapp.ptlihjl.mongodb.net/zeitapp?retryWrites=true&w=majority&appName=ZeitApp
+        sync: false
       - key: JWT_SECRET
-        value: dein-super-geheimer-schluessel-hier
-      - key: NODE_VERSION
-        value: 18.17.0
-    healthCheckPath: /health
-    autoDeploy: true 
+        sync: false
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/health
+    autoDeploy: true
+    plan: free
+    nodeVersion: 20.11.1 
