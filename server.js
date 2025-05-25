@@ -19,19 +19,26 @@ const corsOptions = {
     ? [
         'https://zeitapp.onrender.com',
         'https://www.zeitapp.onrender.com',
+        /\.onrender\.com$/,  // Erlaubt alle Render-URLs
         process.env.RENDER_EXTERNAL_URL,
         process.env.RAILWAY_PUBLIC_DOMAIN
       ].filter(Boolean)
     : 'http://localhost:5173',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Logging Middleware
+// Logging Middleware mit mehr Details
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`, {
+    origin: req.headers.origin,
+    host: req.headers.host,
+    userAgent: req.headers['user-agent']
+  });
   next();
 });
 
